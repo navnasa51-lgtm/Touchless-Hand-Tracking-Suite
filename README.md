@@ -23,3 +23,69 @@ A modular, real-time computer vision application that converts standard webcam f
 ## 🛠️ System Architecture & How It Works
 
 The codebase is built on an asynchronous, decoupled, modular pipeline. This architecture ensures that heavy I/O operations (like writing video data to disk) and deep learning inferences (like OCR parsing) execute on separate worker threads, maintaining a high and stable frame rate for the camera capture loop.
++--------------------------------------------+
+   |             Camera Capture Loop            |
+   +---------------------+----------------------+
+                         |
+                         v [Flipped Frame Matrix]
+   +---------------------+----------------------+
+   |       HandTracker (MediaPipe Pipeline)     |
+   +---------------------+----------------------+
+                         |
+           +-------------+-------------+
+           | [Fingers State Vector]    | [Index Coordinates]
+           v                           v
+           +--------------+-------------+     +-------+--------------------+
+|     Semantic Gesture Map   |     |    State Router Matrix     |
++--------------+-------------+     +-------+--------------+-----+
+|                           |              |
+| (Fist Input)              | (Whiteboard) | (UI Controller)
+v                           v              v
++--------------+-------------+     +-------+------+     +-+------------------+
+|   AI Processor Thread      |     | CanvasModule |     | UiControllerModule |
+| (EasyOCR / Shape Contours) |     +-------+------+     +---------+----------+
++--------------+-------------+             |                      |
+|                           |                      v [PyAutoGUI]
++-------------+-------------+              +-------+----------+
+|                            | OS Mouse Events  |
+v                            +------------------+
++---------------------+----------------------+
+|      Asynchronous Session Recorder         |
+|  [Buffered Deque Queue -> Disk Worker]    |
++--------------------------------------------+
+### Core Subsystems:
+1. **`main.py` (The Orchestration Layer)**: Initiates hardware resources, reads global settings, captures input frames, monitors keyboard event overrides, and safely handles mode switching.
+2. **`hand_tracker.py` (The Vision Engine)**: Utilizes the MediaPipe framework to extract 21 spatial hand landmark coordinates. It dynamically evaluates whether individual fingers are open or closed.
+3. **`canvas_module.py` (The Virtual Whiteboard Subsystem)**: Encapsulates its own isolated pixel canvas layer matrix. It processes brush drawing vectors (`xp, yp`), handles palette color selections, and applies alpha-blending logic.
+4. **`ui_controller_module.py` (The OS Automation Engine)**: Linearly interpolates raw video frame coordinates into the system's absolute display resolution using `numpy.interp`. It overrides frame delays (`pyautogui.PAUSE = 0`) for rapid cursor response.
+5. **`ai_modules.py` (The Deep Learning Pipeline)**: Implements adaptive thresholding paired with an `EasyOCR` network instance. It processes text and shape extractions inside an asynchronous background thread.
+6. **`recorder.py` (Threaded Video Writer)**: Offloads heavy video block encoding (`cv2.VideoWriter`) to a frame buffer, keeping frame drops to zero during recording sessions.
+
+---
+
+## 🎨 Semantic Gesture Reference Map
+
+To prevent tracking drops caused by natural human hand relaxation, the application relies on **Semantic Mapping**. Instead of matching exact, rigid binary arrays, it evaluates only the core fingers required for a gesture while completely ignoring secondary fingers (like the thumb) during drawing actions.
+
+| Gesture Appearance | Knuckle Configuration Array | Triggered Functional Sub-Routine |
+| :--- | :--- | :--- |
+| **Pure Pointing** | Index: `UP` <br> Middle/Ring/Pinky: `DOWN` <br> *Thumb: Ignored* | **Whiteboard Mode**: Continuous Line Drawing / Writing.<br>**UI Controller Mode**: Mirrors Hand to Mouse Cursor. |
+| **Dual Pointing** | Index: `UP`, Middle: `UP` <br> Ring/Pinky: `DOWN` <br> *Thumb: Ignored* | **Whiteboard Mode**: Color/Tool Palette Selection (Hover over header boxes). |
+| **Triple Pointing** | Index: `UP`, Middle: `UP`, Ring: `UP` <br> Pinky: `DOWN` <br> *Thumb: Ignored* | **Whiteboard Mode**: Fast Chord Eraser (Clears drawn paths instantly). |
+| **Open Hand** | Index, Middle, Ring, Pinky: `UP` <br> *Thumb: Ignored* | **Global Action**: Instant Canvas Matrix Flush (Clears the entire board). |
+| **Closed Fist** | Index, Middle, Ring, Pinky, Thumb: `DOWN` | **Global Action**: Triggers Asynchronous Deep Learning AI OCR Pipeline. |
+
+* **Pinch Click Interaction**: When active in `UI_CONTROLLER` mode, checking the physical Euclidean distance between the tip of your thumb and the tip of your index finger against `CLICK_THRESHOLD` generates native OS click actions.
+
+---
+
+## 🚀 Installation & Setup
+
+1. **Clone the Repository:**
+   ```bash
+   git clone [https://github.com/YOUR_USERNAME/touchless-hand-tracking-suite.git](https://github.com/YOUR_USERNAME/touchless-hand-tracking-suite.git)
+   cd touchless-hand-tracking-suite
+2. ```bash
+   pip install opencv-python numpy mediapipe pyautogui easyocr
+3. ```bash
+   python main.py
