@@ -72,3 +72,10 @@ To prevent tracking drops caused by natural human hand relaxation, the applicati
    ```bash
    git clone [https://github.com/YOUR_USERNAME/touchless-hand-tracking-suite.git](https://github.com/YOUR_USERNAME/touchless-hand-tracking-suite.git)
    cd touchless-hand-tracking-suite
+2. **Requirements:**
+   ```bash
+   pip install opencv-python numpy mediapipe pyautogui easyocr
+3. **Execution:**
+   ```bash
+   python main.py
+   
